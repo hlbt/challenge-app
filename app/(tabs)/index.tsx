@@ -1,75 +1,113 @@
-import { Image } from 'expo-image';
-import { Platform, StyleSheet } from 'react-native';
+import React, { useState } from 'react';
+import { Button, StyleSheet } from 'react-native';
+import { sha256 } from 'js-sha256';
+import * as ed from '@noble/ed25519';
+import { Buffer } from 'buffer';
 
-import { HelloWave } from '@/components/HelloWave';
-import ParallaxScrollView from '@/components/ParallaxScrollView';
 import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
+import { ThemedTextInput } from "@/components/ThemedInputText";
 
-export default function HomeScreen() {
-  return (
-    <ParallaxScrollView
-      headerBackgroundColor={{ light: '#A1CEDC', dark: '#1D3D47' }}
-      headerImage={
-        <Image
-          source={require('@/assets/images/partial-react-logo.png')}
-          style={styles.reactLogo}
-        />
-      }>
-      <ThemedView style={styles.titleContainer}>
-        <ThemedText type="title">Welcome!</ThemedText>
-        <HelloWave />
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 1: Try it</ThemedText>
-        <ThemedText>
-          Edit <ThemedText type="defaultSemiBold">app/(tabs)/index.tsx</ThemedText> to see changes.
-          Press{' '}
-          <ThemedText type="defaultSemiBold">
-            {Platform.select({
-              ios: 'cmd + d',
-              android: 'cmd + m',
-              web: 'F12',
-            })}
-          </ThemedText>{' '}
-          to open developer tools.
-        </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 2: Explore</ThemedText>
-        <ThemedText>
-          {`Tap the Explore tab to learn more about what's included in this starter app.`}
-        </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 3: Get a fresh start</ThemedText>
-        <ThemedText>
-          {`When you're ready, run `}
-          <ThemedText type="defaultSemiBold">npm run reset-project</ThemedText> to get a fresh{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> directory. This will move the current{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> to{' '}
-          <ThemedText type="defaultSemiBold">app-example</ThemedText>.
-        </ThemedText>
-      </ThemedView>
-    </ParallaxScrollView>
-  );
+if (typeof globalThis.Buffer === 'undefined') {
+    globalThis.Buffer = Buffer;
+}
+
+export default function Index() {
+    const [message, setMessage] = useState('');
+    const [hash, setHash] = useState('');
+    const [signature, setSignature] = useState('');
+    const [publicKey, setPublicKey] = useState('');
+    const [verifyMessage, setVerifyMessage] = useState('');
+    const [verifySignature, setVerifySignature] = useState('');
+    const [verifyPublicKey, setVerifyPublicKey] = useState('');
+    const [verifyResult, setVerifyResult] = useState<null | boolean>(null);
+
+    const privateKey = ed.utils.randomPrivateKey();
+
+    const handleSign = async () => {
+        const msgHash = sha256(message);
+        const msgBytes = new TextEncoder().encode(message);
+
+        const sig = await ed.signAsync(msgBytes, privateKey);
+        const pub = await ed.getPublicKeyAsync(privateKey);
+
+        setHash(msgHash);
+        setSignature(Buffer.from(sig).toString('base64'));
+        setPublicKey(Buffer.from(pub).toString('base64'));
+    };
+
+    const handleVerify = async () => {
+        const pubKeyBytes = Buffer.from(verifyPublicKey, 'base64');
+        const sigBytes = Buffer.from(verifySignature, 'base64');
+        const msgBytes = new TextEncoder().encode(verifyMessage);
+        try {
+            const valid = await ed.verifyAsync(sigBytes, msgBytes, pubKeyBytes);
+            setVerifyResult(valid);
+        } catch (e) {
+            console.error('handleVerify', e);
+            setVerifyResult(false);
+        }
+    };
+
+    return (
+        <ThemedView style={styles.container}>
+            <ThemedText type="defaultSemiBold" style={styles.title}>Sign & Verify (Ed25519)</ThemedText>
+            <ThemedTextInput
+                style={styles.input}
+                placeholder="Enter message to sign"
+                value={message}
+                onChangeText={setMessage}
+                multiline
+            />
+            <Button title="Hash + Sign" onPress={handleSign} />
+            {hash !== '' && (
+                <ThemedView style={styles.outputBox}>
+                    <ThemedText>SHA-256 Hash: {hash}</ThemedText>
+                    <ThemedText>Signature (base64): {signature}</ThemedText>
+                    <ThemedText>Public Key (base64): {publicKey}</ThemedText>
+                </ThemedView>
+            )}
+
+            <ThemedText type="defaultSemiBold" style={styles.subtitle}>Verify</ThemedText>
+            <ThemedTextInput
+                style={styles.input}
+                placeholder="Message to verify"
+                value={verifyMessage}
+                onChangeText={setVerifyMessage}
+                multiline
+            />
+            <ThemedTextInput
+                style={styles.input}
+                placeholder="Signature (base64)"
+                value={verifySignature}
+                onChangeText={setVerifySignature}
+            />
+            <ThemedTextInput
+                style={styles.input}
+                placeholder="Public Key (base64)"
+                value={verifyPublicKey}
+                onChangeText={setVerifyPublicKey}
+            />
+            <Button title="Verify" onPress={handleVerify} />
+            {verifyResult !== null && (
+                <ThemedText style={{ color: verifyResult ? 'green' : 'red' }}>
+                    {verifyResult ? 'Valid ✅' : 'Invalid ❌'}
+                </ThemedText>
+            )}
+        </ThemedView>
+    );
 }
 
 const styles = StyleSheet.create({
-  titleContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  stepContainer: {
-    gap: 8,
-    marginBottom: 8,
-  },
-  reactLogo: {
-    height: 178,
-    width: 290,
-    bottom: 0,
-    left: 0,
-    position: 'absolute',
-  },
+    container: { flex: 1, padding: 20, justifyContent: 'center' },
+    title: { fontSize: 24, marginBottom: 20 },
+    subtitle: { fontSize: 20, marginTop: 30 },
+    input: {
+        borderWidth: 1,
+        padding: 10,
+        marginVertical: 10,
+        borderRadius: 6,
+        minHeight: 60,
+    },
+    outputBox: { marginTop: 20 },
 });
