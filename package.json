@@ -2,13 +2,15 @@
   "name": "challenge-app",
   "main": "expo-router/entry",
   "version": "1.0.0",
+  "homepage": "https://hlbt.github.com/hlbt/challenge-app",
   "scripts": {
     "start": "expo start",
     "reset-project": "node ./scripts/reset-project.js",
     "android": "expo start --android",
     "ios": "expo start --ios",
     "web": "expo start --web",
-    "lint": "expo lint"
+    "lint": "expo lint",
+    "export": "expo export --dev --output-dir web-build"
   },
   "dependencies": {
     "@expo/vector-icons": "^14.1.0",
